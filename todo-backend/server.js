@@ -38,7 +38,7 @@ async function getUserID(request)
 			return false;
 		}
 
-		console.log(request.cookies);
+		//console.log(request.cookies);
 
 		let session_id = request.cookies.c1;
 		let hash = request.cookies.c2;
@@ -52,11 +52,17 @@ async function getUserID(request)
 			"SELECT user_id, ip FROM sessions " +
 			"WHERE session_id = $1 AND " +
 			"session_hash = $2 AND " +
-			"(session_use is NULL OR session_use > (clock_timestamp()-($3 * interval '1 minute')))",
+			"session_end is NULL AND (session_use is NULL OR session_use > (clock_timestamp()-($3 * interval '1 minute')))",
 			[session_id, hash, session_timeout_minutes]
 		);
 		if (query_user_id.rowCount === 0) {
 			debuglog("auth failed: no matching sessions");
+			const logoutsession = await pool.query(
+				"UPDATE sessions SET session_end = clock_timestamp() " +
+				"WHERE session_id = $1 AND session_hash = $2 " +
+				"RETURNING session_end",
+				[session_id, hash]
+			);
 			return false;
 		}
 		else
@@ -66,11 +72,11 @@ async function getUserID(request)
 				debuglog("auth failed: wrong ip");
 				return false;
 			}
-			var updatesession = await pool.query(
+			const updatesession = await pool.query(
 				"UPDATE sessions SET session_use = clock_timestamp() " +
-				"WHERE session_id = $1 " +
+				"WHERE session_id = $1 AND session_hash = $2 " +
 				"RETURNING session_use",
-				[session_id]
+				[session_id, hash]
 			);
 			debuglog('Logged in as id ' + query_user_id.rows[0].user_id);
 			return query_user_id.rows[0].user_id;
@@ -79,12 +85,12 @@ async function getUserID(request)
 	catch (err) {
 		debuglog("Checking session failed with errors");
 		console.error(err.message);
+		return false;
 	}
 }
 
 /*
 // Logging in
-
 */
 app.post("/login", async (req, res) => {
 	try {
@@ -191,6 +197,63 @@ app.post("/login", async (req, res) => {
 				});
 			} // else: req.body x2
 		} // else: !req
+	}
+	catch (err) {
+		console.error(err.message);
+	}
+});
+
+app.get("/logout", async (req, res) => {
+	try {
+		debuglog("/logout");
+		let user_id = await getUserID(req);
+		if(user_id > 0) {
+			let session_id = req.cookies.c1;
+			let hash = req.cookies.c2;
+			const logoutsession = await pool.query(
+				"UPDATE sessions SET session_end = clock_timestamp() " +
+				"WHERE session_id = $1 AND session_hash = $2 " +
+				"RETURNING session_end",
+				[session_id, hash]
+			);
+			if (logoutsession.rowCount > 0) {
+				debuglog("Logout succesful");
+				res.cookie("c1", "", {
+					httpOnly: true,
+					domain: cookie_domain,
+					maxAge: 1
+				});
+				res.cookie("c2", "", {
+					httpOnly: true,
+					domain: cookie_domain,
+					maxAge: 1
+				});
+				res.send(`
+<html>
+<head><title>Logged out succesfully</title></head>
+<body>
+<h1>Logged out succesfully</h1>
+<p>Well... <a href="/">move along now</a>.</p>
+</body>
+</html>`);
+			} // if: logoutsession
+			else {
+				res.send(`
+<html>
+<head><title>Problem with logout</title></head>
+<body>
+<h1>Problem with logout</h1>
+<p>Couldn't log you out. You can try <a href="">refreshing</a> to see if it works now.</p>
+</body>
+</html>`);
+			}
+		} // if: user_id > 0
+		else {
+			/*
+			// Already not logged in
+			*/
+			res.redirect(frontend_url);
+		}
 	}
 	catch (err) {
 		console.error(err.message);
@@ -367,6 +430,7 @@ app.post('/api/newtask', async (req, res) => {
 
 app.delete('/api/deltask/:id', async (req, res) => {
 	try {
+		debuglog("deltask: " + req.params.id);
 		let user_id = await getUserID(req);
 		if(user_id > 0) {
 			const deltask = await pool.query('DELETE FROM tasks WHERE task_id = $1 ' +
@@ -405,6 +469,7 @@ app.delete('/api/deltask/:id', async (req, res) => {
 */
 app.put('/api/edittask/:id', async (req, res) => {
 	try {
+		debuglog("edittask: " + req.params.id);
 		let user_id = await getUserID(req);
 		if(user_id > 0) {
 			/*

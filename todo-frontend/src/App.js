@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { Container, Typography, Box, Tabs, Tab } from '@mui/material';
+import Button from '@mui/material/Button';
+import Toolbar from '@mui/material/Toolbar';
 import NewTask from './NewTask';
 import TaskList from './TaskList';
 import ViewTask from './ViewTask';
@@ -25,10 +27,20 @@ const App = () => {
 			}
 		}
 	};
+	function doLogOut()
+	{
+		window.location.assign(process.env.REACT_APP_TODO_BACKEND + '/logout');
+	}
 
 	getUserID();
 
 	return (
+		<><Toolbar sx={{ justifyContent: "space-between" }}>
+			<div />
+			<Button type="submit" onClick={doLogOut} >
+				Log out
+			</Button>
+		</Toolbar>
 		<Container maxWidth="md" sx={{ mt: 4 }}>
 
 			<Typography variant="h4" align="center" gutterBottom>
@@ -103,7 +115,7 @@ const App = () => {
 					key={refreshList}
 				/>
 			)}
-		</Container>
+		</Container></>
 	);
 };
 

@@ -328,10 +328,10 @@ const ViewTask = ({ me, selected, clearSelection, onSaved, onEdit }) => {
 				onChange={handleChange}
 				required
 			/>
-			<FormControlLabel
+			{task.creator_id === me &&(<FormControlLabel
 				control={<Checkbox name="private" checked={task.private} onChange={handleBoolean} />}
 				label="Make task private"
-			/>
+			/>)}
 			<DateTimePicker
 				label="Planned start date"
 				name="task_start_date"
