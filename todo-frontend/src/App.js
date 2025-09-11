@@ -7,6 +7,13 @@ import NewTask from './NewTask';
 import TaskList from './TaskList';
 import ViewTask from './ViewTask';
 
+var debugmode = true;
+function debuglog(debugobj) {
+	if (debugmode) {
+		console.log(new Date().toISOString() + ": ", debugobj);
+	}
+}
+
 const App = () => {
 	const [selectedTask, setSelectedTask] = useState(null);
 	const [refreshList, setRefreshList] = useState(false);
@@ -18,11 +25,11 @@ const App = () => {
 		{
 			try {
 				const res = await axios.get(process.env.REACT_APP_TODO_BACKEND + '/api/userid', { withCredentials: true });
-				console.log(res.data);
+				debuglog(res.data);
 				setUserID(res.data);
 			}
 			catch (err) {
-				//console.log(err);
+				debuglog(err);
 				window.location.assign(process.env.REACT_APP_TODO_BACKEND);
 			}
 		}
@@ -72,7 +79,7 @@ const App = () => {
 			*/}
 			{tab === 0 && (
 				<TaskList
-					me={userID}
+					myID={userID}
 					onEdit={(selectedTask) => {
 						setSelectedTask(selectedTask);
 						setTab(2);
@@ -87,7 +94,7 @@ const App = () => {
 			*/}
 			{tab === 1 && (
 				<NewTask
-					me={userID}
+					myID={userID}
 					selected={selectedTask}
 					clearSelection={() => setSelectedTask(null)}
 					onSaved={() => {
@@ -102,7 +109,7 @@ const App = () => {
 			*/}
 			{tab === 2 && (
 				<ViewTask
-					me={userID}
+					myID={userID}
 					selected={selectedTask}
 					clearSelection={() => setSelectedTask(null)}
 					onSaved={() => {

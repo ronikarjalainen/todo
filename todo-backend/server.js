@@ -1,10 +1,12 @@
 require('dotenv').config();
 require("./settings");
+//const mime = require('mime');
+const mime = require('mime-types');
 const pool = require("./db-pg");
 const express = require('express');
 const cors = require('cors');
 var corsOptions = {
-	origin: 'http://localhost:3000',
+	origin: cors_url,
 	credentials: true,
 	allowedHeaders: [
     "Content-Type",
@@ -21,7 +23,26 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(cookieParser());
 app.use(cors(corsOptions));
-app.use('/', express.static('login'))
+app.use((req, res, next) => {
+  res.set('Cache-Control', 'no-store')
+  next()
+});
+app.set('etag', false);
+app.use('/', express.static('login'));
+app.use('/todo', express.static('todo'), async (req, res, next) => {
+	let user_id = await getUserID(req);
+	if(!user_id || user_id < 0) {
+		debuglog("static todo: not logged in");
+		return res.status(403).json({
+			success: false,
+			message: "Access denied.",
+		});
+	}
+	else {
+		debuglog("static todo: logged in as " + user_id);
+		next();
+	}
+});
 
 function debuglog(debugstring) {
 	if (mode_debug) {
@@ -265,8 +286,18 @@ app.get('/', async (req, res) => {
 		let user_id = await getUserID(req);
 		if(user_id > 0) {
 			// show main UI
-			debuglog("logged in as " + user_id);
-			res.redirect(frontend_url);
+			debuglog("get /: logged in as " + user_id);
+			fs.readFile("todo.html", 'utf8', (err, data) => {
+				if(err) {
+					debuglog("todo: error reading file");
+					return res.status(500).json({
+						success: false,
+						message: "Internal server error.",
+					});
+				}
+				res.send(data);
+			});
+			//res.redirect(frontend_url);
 			/*res.setHeader('Content-Type', 'text/html');
 			res.send(`
 <html>
@@ -298,6 +329,35 @@ app.get('/', async (req, res) => {
 				}
 				res.send(data);
 			});
+		}
+	}
+	catch (err) {
+		console.error(err.message);
+	}
+});
+
+
+app.get('/showlogin', async (req, res) => {
+	try {
+		let user_id = await getUserID(req);
+		if(user_id > 0) {
+			// show main UI
+			debuglog("showlogin: logged in as " + user_id);
+			//res.redirect(frontend_url);
+			res.setHeader('Content-Type', 'text/html');
+			res.send(`
+<html>
+	<head><title>Log in</title></head>
+	<body>
+		<h1>Logged in</h1>
+		<p>It looks like you're logged in as user ID ` + user_id + `.</p>
+	</body>
+</html>`);
+		}
+		else {
+			// show log in form
+			debuglog("showlogin: not logged in: " + user_id);
+			res.redirect(frontend_url);
 		}
 	}
 	catch (err) {
@@ -359,72 +419,78 @@ app.get('/api/owntasks', async (req, res) => {
 
 // Lisää uusi tehtävä
 app.post('/api/newtask', async (req, res) => {
-	let user_id = await getUserID(req);
-	if(user_id > 0) {
-		if (!req.body.task_name || !req.body.task_description || !req.ip) {
-			debuglog("missing task details");
-			return res.status(400).json({
+	try {
+		let user_id = await getUserID(req);
+		if(user_id > 0) {
+			if (!req.body.task_name || !req.body.task_description || !req.ip) {
+				debuglog("missing task details");
+				return res.status(400).json({
+					success: false,
+					message: "Invalid request",
+				});
+			}
+			console.log(req.body);
+			let taskname = req.body.task_name;
+			let description = req.body.task_description;
+			let privateTask = false;
+			if(req.body.private) {
+				privateTask = true;
+			}
+			let task_start;
+			let task_end;
+			let startdate;
+			let enddate;
+			/*
+			// if start date is undefined, set it to next full hour next day
+			*/
+			if(!req.body.task_start) {
+				startdate = new Date();
+				startdate.setHours((startdate.getHours() + 1), 0, 0, 0);
+				task_start = startdate.toISOString();
+			}
+			else {
+				task_start = req.body.task_start;
+			}
+			/*
+			// if start date is undefined, set it to next full hour next day
+			*/
+			if(!req.body.task_end) {
+				enddate = new Date(task_start);
+				enddate.setHours((enddate.getHours() + 1), 0, 0, 0);
+				enddate.setDate(enddate.getDate() + 1);
+				task_end = enddate.toISOString();
+			}
+			else {
+				task_end = req.body.task_end;
+			}
+
+			if(task_start > task_end)
+			{
+				debuglog("Start timestamp larger! switching...");
+				let temp_date = task_start;
+				task_start = task_end;
+				task_end = temp_date;
+			}
+			const query_newtask = await pool.query("INSERT INTO tasks(task_name, task_description, creator_id, private, planned_task_start, planned_task_finish)" +
+				"VALUES($1, $2, $3, $4, $5, $6) RETURNING task_id",
+				[taskname, description, user_id, privateTask, task_start, task_end]);
+			if(query_newtask.rows[0].task_id > 0)
+			{
+				debuglog("newtask: task added succesfully");
+				return res.json({ success: true, message: 'Task added succesfully' });
+			}
+		}
+		else {
+			debuglog("newtask: not logged in");
+			return res.status(403).json({
 				success: false,
-				message: "Invalid request",
+				message: "Access denied.",
 			});
 		}
-		console.log(req.body);
-		let taskname = req.body.task_name;
-		let description = req.body.task_description;
-		let privateTask = false;
-		if(req.body.private) {
-			privateTask = true;
-		}
-		let task_start;
-		let task_end;
-		let startdate;
-		let enddate;
-		/*
-		// if start date is undefined, set it to next full hour next day
-		*/
-		if(!req.body.task_start) {
-			startdate = new Date();
-			startdate.setHours((startdate.getHours() + 1), 0, 0, 0);
-			task_start = startdate.toISOString();
-		}
-		else {
-			task_start = req.body.task_start;
-		}
-		/*
-		// if start date is undefined, set it to next full hour next day
-		*/
-		if(!req.body.task_end) {
-			enddate = new Date(task_start);
-			enddate.setHours((enddate.getHours() + 1), 0, 0, 0);
-			enddate.setDate(enddate.getDate() + 1);
-			task_end = enddate.toISOString();
-		}
-		else {
-			task_end = req.body.task_end;
-		}
-
-		if(task_start > task_end)
-		{
-			debuglog("Start timestamp larger! switching...");
-			let temp_date = task_start;
-			task_start = task_end;
-			task_end = temp_date;
-		}
-		const query_newtask = await pool.query("INSERT INTO tasks(task_name, task_description, creator_id, private, planned_task_start, planned_task_finish)" +
-			"VALUES($1, $2, $3, $4, $5, $6) RETURNING task_id",
-			[taskname, description, user_id, privateTask, task_start, task_end]);
-		if(query_newtask.rows[0].task_id > 0)
-		{
-			debuglog("newtask: task added succesfully");
-			return res.json({ success: true, message: 'Task added succesfully' });
-		}
 	}
-	else {
-		debuglog("newtask: not logged in");
-		return res.status(403).json({
-			success: false,
-			message: "Access denied.",
-		});
+	catch (err) {
+		console.error(err.message);
+		return res.status(500).send(err);
 	}
 });
 

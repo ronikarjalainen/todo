@@ -19,7 +19,15 @@ import NotStartedIcon from '@mui/icons-material/NotStarted';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import ErrorM from './ErrorM';
 require('dayjs/locale/fi');
+
+var debugmode = true;
+function debuglog(debugobj) {
+	if (debugmode) {
+		console.log(new Date().toISOString() + ": ", debugobj);
+	}
+}
 
 /*
 // The listing component
@@ -31,8 +39,10 @@ const TaskList = ({ myID, onEdit }) => {
 	const [search, setSearch] = useState('');
 	// Suodattimen tila
 	const [filter, setFilter] = useState('all');
-	// Järjestyksen suunta: true = A–Ö, false = Ö–A
+	// Järjestyksen suunta
 	const [ordering, setOrdering] = useState('no');
+	// Virhetila
+	const [error, setError] = useState({});
 
 	var userLocale = "fi-FI";//Intl.DateTimeFormat().resolvedOptions().locale;
 	//var timeZone = 	Intl.DateTimeFormat().resolvedOptions().timeZone;//"Europe/Helsinki";
@@ -48,11 +58,33 @@ const TaskList = ({ myID, onEdit }) => {
 		try {
 			const res = await axios.get(process.env.REACT_APP_TODO_BACKEND + '/api/gettasks', { withCredentials: true });
 			setFetchedTasks(res.data);
-			console.log(res.data);
+			debuglog(res.data.length + " tasks fetched");
+			debuglog(res.data);
 		}
 		catch (err) {
-	    	//console.log(err);
-			window.location.assign(process.env.REACT_APP_TODO_BACKEND);
+	    	debuglog(err);
+			/*
+			// This used to throw you back to login page, but now it shows an error message depending on the error code. 
+			*/
+			//window.location.assign(process.env.REACT_APP_TODO_BACKEND);
+			if(err.response?.status === 500 || err.status === 500) {
+				/*
+				// Internal server error
+				*/
+				setError({open: true, title: "Problem", message: "The server couldn't handle the request because there's an internal server error. Please try again later."});
+			}
+			else if(err.response?.status === 403 || err.status === 403) {
+				/*
+				// Access denied
+				*/
+				setError({open: true, title: "Problem", message: "Access denied. You don't have permission to get the task list. Try logging in again.", showLogin: true});
+			}
+			else {
+				/*
+				// Other errors
+				*/
+				setError({open: true, title: "Problem", message: err.response?.data?.error || err.response?.data?.message || (err.response?.statusText ? err.message + ": " + err.response?.statusText : err.message) || "Unknown error"});
+			}
 		}
 	};
 
@@ -133,6 +165,24 @@ const TaskList = ({ myID, onEdit }) => {
 					matchFilter = true;
 				}
 				break;
+			case "addedbyme":
+				if(task.creator_id === myID)
+				{
+					matchFilter = true;
+				}
+				break;
+			case "startedbyme":
+				if(task.starter_id === myID)
+				{
+					matchFilter = true;
+				}
+				break;
+			case "finishedbyme":
+				if(task.finisher_id === myID)
+				{
+					matchFilter = true;
+				}
+				break;
 			default:
 				matchFilter = true;
 		}
@@ -157,6 +207,12 @@ const TaskList = ({ myID, onEdit }) => {
 			<Typography variant="h6" gutterBottom>
 				Task list contains {`${tasks.length}`} {tasks.length === 1 ? 'task' : 'tasks'}
 			</Typography>
+			<ErrorM
+				err={error}
+				onCloseModal={() => {
+					setError({});
+				}}
+			/>
 			{/* Filtering and ordering options */}
 			<Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
 				<TextField
@@ -177,6 +233,9 @@ const TaskList = ({ myID, onEdit }) => {
 					<MenuItem value="started">Started tasks</MenuItem>
 					<MenuItem value="incomplete">Incomplete tasks</MenuItem>
 					<MenuItem value="complete">Completed tasks</MenuItem>
+					<MenuItem value="addedbyme">Tasks I added</MenuItem>
+					<MenuItem value="startedbyme">Tasks I started</MenuItem>
+					<MenuItem value="finishedbyme">Tasks I finished</MenuItem>
 				</TextField>
 				<TextField
 					select

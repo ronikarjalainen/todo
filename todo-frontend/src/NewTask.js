@@ -9,7 +9,15 @@ import { DateTimePicker } from '@mui/x-date-pickers';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import ErrorM from './ErrorM';
 require('dayjs/locale/fi');
+
+var debugmode = true;
+function debuglog(debugobj) {
+	if (debugmode) {
+		console.log(new Date().toISOString() + ": ", debugobj);
+	}
+}
 
 /*
 // Task creation component
@@ -25,6 +33,10 @@ const NewTask = ({ myID, onSaved }) => {
 	const [startDate, setStartDate] = useState(dayjs().add(1, 'hour').set('minute', 0).set('second', 0).set('millisecond', 0));
 	const [endDate, setEndDate] = useState(dayjs().add(1, 'day').add(1, 'hour').set('minute', 0).set('second', 0).set('millisecond', 0));
 	const [privateTask, setPrivate] = useState(false);
+
+	// Virhetila
+	const [error, setError] = useState({});
+
 	var userLocale = "fi";//Intl.DateTimeFormat().resolvedOptions().locale;
 	//var timeZone = 	Intl.DateTimeFormat().resolvedOptions().timeZone;//"Europe/Helsinki";
 	dayjs.extend(relativeTime);
@@ -35,7 +47,7 @@ const NewTask = ({ myID, onSaved }) => {
 	*/
 	const handleChange = (e) => {
 		setForm({ ...form, [e.target.name]: e.target.value });
-		//console.log(form);
+		debuglog(form);
 	};
 
 	/*
@@ -64,8 +76,17 @@ const NewTask = ({ myID, onSaved }) => {
 			onSaved();
 		}
 		catch (err) {
-	  		//console.log(err);
-			window.location.assign(process.env.REACT_APP_TODO_BACKEND);
+			debuglog(err);
+			//window.location.assign(process.env.REACT_APP_TODO_BACKEND);
+			if(err.response?.status === 500 || err.status === 500) {
+				setError({open: true, title: "Problem", message: "The server couldn't handle the request because there's an internal server error. Please try again later."});
+			}
+			else if(err.response?.status === 403 || err.status === 403) {
+				setError({open: true, title: "Problem", message: "Access denied. You don't have permission to add a task.", showLogin: true});
+			}
+			else {
+				setError({open: true, title: "Problem", message: err.response?.data?.error || err.response?.data?.message || (err.response?.statusText ? err.message + ": " + err.response?.statusText : err.message) || "Unknown error"});
+			}
 		}
 	};
 
@@ -73,7 +94,14 @@ const NewTask = ({ myID, onSaved }) => {
 	// Show the new task submission form
 	*/
 	return (
-		<Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}><LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale={userLocale}>
+		<Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+			<ErrorM
+				err={error}
+				onCloseModal={() => {
+					setError({});
+				}}
+			/>
+			<LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale={userLocale}>
 			<TextField
 				label="Title"
 				name="task_name"

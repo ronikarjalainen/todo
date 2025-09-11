@@ -18,7 +18,16 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { DateTimePicker } from '@mui/x-date-pickers';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import ErrorM from './ErrorM';
+
 require('dayjs/locale/fi');
+
+var debugmode = true;
+function debuglog(debugobj) {
+	if (debugmode) {
+		console.log(new Date().toISOString() + ": ", debugobj);
+	}
+}
 
 /*
 // Task detail component
@@ -28,7 +37,7 @@ require('dayjs/locale/fi');
 //  - onSaved returns to the list, primarily when the task is saved
 //  - onEdit refreshes the task after it's been interacted with
 */
-const ViewTask = ({ me, selected, clearSelection, onSaved, onEdit }) => {
+const ViewTask = ({ myID, selected, clearSelection, onSaved, onEdit }) => {
 
 	const [task, setTask] = useState({});
 	const [editMode, setEditmode] = useState(false);
@@ -36,6 +45,10 @@ const ViewTask = ({ me, selected, clearSelection, onSaved, onEdit }) => {
 	const [endDate, setEndDate] = useState(dayjs());
 	const [actualStartDate, setActualStartDate] = useState(dayjs());
 	const [actualEndDate, setActualEndDate] = useState(dayjs());
+
+	// Virhetila
+	const [error, setError] = useState({});
+
 	var userLocale = "fi";//Intl.DateTimeFormat().resolvedOptions().locale;// navigator.languages && navigator.languages.length ? navigator.languages[0] : navigator.language;
 	//var timeZone = 	Intl.DateTimeFormat().resolvedOptions().timeZone;//"Europe/Helsinki";
 	dayjs.extend(relativeTime);
@@ -196,7 +209,31 @@ const ViewTask = ({ me, selected, clearSelection, onSaved, onEdit }) => {
 			}
 		}
 		catch (err) {
-	    	console.log(err);
+	    	debuglog(err);
+			if(err.response?.status === 304 || err.status === 304) {
+				/*
+				// Not modified
+				*/
+				setError({open: true, title: "Problem", message: "The task couldn't be removed. It might be that it was already removed by someone else."});
+			}
+			else if(err.response?.status === 500 || err.status === 500) {
+				/*
+				// Internal server error
+				*/
+				setError({open: true, title: "Problem", message: "The server couldn't handle the request because there's an internal server error"});
+			}
+			else if(err.response?.status === 403 || err.status === 403) {
+				/*
+				// Access denied
+				*/
+				setError({open: true, title: "Problem", message: "Access denied. You don't have permission to remove this task.", showLogin: true});
+			}
+			else {
+				/*
+				// Other errors
+				*/
+				setError({open: true, title: "Problem", message: err.response?.data?.error || err.response?.data?.message || (err.response?.statusText ? err.message + ": " + err.response?.statusText : err.message) || "Unknown error"});
+			}
 		}
 		finally {
 		}
@@ -212,13 +249,42 @@ const ViewTask = ({ me, selected, clearSelection, onSaved, onEdit }) => {
 			{
 				selected.actual_task_start = retval.data.actual_task_start;
 				selected.starter_name = "You";
+				onEdit();
+			}
+			else {
+				console.log("is this ever reached?");
+				onEdit();
 			}
 		}
 		catch (err) {
-	    	console.log(err);
+	    	debuglog(err);
+			if(err.response?.status === 304 || err.status === 304) {
+				/*
+				// Not modified
+				*/
+				setError({open: true, title: "Problem", message: "The task couldn't be started. It might be that it was already started by someone else."});
+			}
+			else if(err.response?.status === 500 || err.status === 500) {
+				/*
+				// Internal server error
+				*/
+				setError({open: true, title: "Problem", message: "The server couldn't handle the request because there's an internal server error"});
+			}
+			else if(err.response?.status === 403 || err.status === 403) {
+				/*
+				// Access denied
+				*/
+				setError({open: true, title: "Problem", message: "Access denied. You don't have permission to start this task.", showLogin: true});
+			}
+			else {
+				/*
+				// Other errors
+				*/
+				setError({open: true, title: "Problem", message: err.response?.data?.error || err.response?.data?.message || (err.response?.statusText ? err.message + ": " + err.response?.statusText : err.message) || "Unknown error"});
+			}
 	 	}
 		finally {
-			onEdit();
+			//onEdit();
 		}
 	};
 
@@ -233,14 +299,42 @@ const ViewTask = ({ me, selected, clearSelection, onSaved, onEdit }) => {
 				selected.actual_task_finish = retval.data.actual_task_finish;
 				selected.finisher_name = "You";
 				selected.time_used = await parseInterval(dayjs(selected.actual_task_finish).diff(selected.actual_task_start, 'second'));
-				//console.log(selected);
+				onEdit();
+			}
+			else {
+				//console.log("is this ever reached?");
+				onEdit();
 			}
 		}
 		catch (err) {
-	    	console.log(err);
+	    	debuglog(err);
+			if(err.response?.status === 304 || err.status === 304) {
+				/*
+				// Not modified
+				*/
+				setError({open: true, title: "Problem", message: "The task couldn't be completed. It might be that it was already completed by someone else."});
+			}
+			else if(err.response?.status === 500 || err.status === 500) {
+				/*
+				// Internal server error
+				*/
+				setError({open: true, title: "Problem", message: "The server couldn't handle the request because there's an internal server error"});
+			}
+			else if(err.response?.status === 403 || err.status === 403) {
+				/*
+				// Access denied
+				*/
+				setError({open: true, title: "Problem", message: "Access denied. You don't have permission to complete this task.", showLogin: true});
+			}
+			else {
+				/*
+				// Other errors
+				*/
+				setError({open: true, title: "Problem", message: err.response?.data?.error || err.response?.data?.message || (err.response?.statusText ? err.message + ": " + err.response?.statusText : err.message) || "Unknown error"});
+			}
 		}
 		finally {
-			onEdit();
+			//onEdit();
 		}
 	};
 
@@ -287,7 +381,26 @@ const ViewTask = ({ me, selected, clearSelection, onSaved, onEdit }) => {
 		}
 		catch(err)
 		{
-			window.location.assign(process.env.REACT_APP_TODO_BACKEND);
+			//window.location.assign(process.env.REACT_APP_TODO_BACKEND);
+			debuglog(err);
+			if(err.response?.status === 500 || err.status === 500) {
+				/*
+				// Internal server error
+				*/
+				setError({open: true, title: "Problem", message: "The server couldn't handle the request because there's an internal server error. Please try again later."});
+			}
+			else if(err.response?.status === 403 || err.status === 403) {
+				/*
+				// Access denied
+				*/
+				setError({open: true, title: "Problem", message: "Access denied. You don't have permission to edit this task.", showLogin: true});
+			}
+			else {
+				/*
+				// Other errors
+				*/
+				setError({open: true, title: "Problem", message: err.response?.data?.error || err.response?.data?.message || (err.response?.statusText ? err.message + ": " + err.response?.statusText : err.message) || "Unknown error"});
+			}
 		}
 	};
 
@@ -311,7 +424,15 @@ const ViewTask = ({ me, selected, clearSelection, onSaved, onEdit }) => {
 	if(editMode)
 	{
 		return (
-		<Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}><LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale={userLocale}>
+		<Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+			<ErrorM
+				err={error}
+				onCloseModal={() => {
+					setError({});
+					onEdit();
+				}}
+			/>
+			<LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale={userLocale}>
 			<TextField
 				label="Title"
 				name="task_name"
@@ -328,7 +449,7 @@ const ViewTask = ({ me, selected, clearSelection, onSaved, onEdit }) => {
 				onChange={handleChange}
 				required
 			/>
-			{task.creator_id === me &&(<FormControlLabel
+			{task.creator_id === myID &&(<FormControlLabel
 				control={<Checkbox name="private" checked={task.private} onChange={handleBoolean} />}
 				label="Make task private"
 			/>)}
@@ -371,6 +492,13 @@ const ViewTask = ({ me, selected, clearSelection, onSaved, onEdit }) => {
 	else 	{
 		return (
 		<Grid container spacing={2}><Grid size={12}>
+			<ErrorM
+				err={error}
+				onCloseModal={() => {
+					setError({});
+					onEdit();
+				}}
+			/>
 			<Typography variant="h3" sx="mt: 1">
 				{task.task_name}
 			</Typography>
@@ -441,7 +569,7 @@ const ViewTask = ({ me, selected, clearSelection, onSaved, onEdit }) => {
 				</Button>
 			</Grid>
 			<Grid size={3} align="right" >
-				{task.creator_id === me ? (
+				{task.creator_id === myID ? (
 				<Button
 					variant="outlined"
 					size="small"
