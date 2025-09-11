@@ -5,4 +5,6 @@ Requirements
 
 Installation
  - clone with git or download zip
- - cd && npm install
+ - cd node-backend && npm install
+ - node server.js
+
