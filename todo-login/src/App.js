@@ -5,7 +5,7 @@ function App() {
   return (
     <div className="App">
 			<Container maxWidth="md" sx={{ mt: 24 }}>
-				<form action="/login" method="post">
+				<form action={process.env.REACT_APP_TODO_BACKEND_LOGIN} method="post">
 					<Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
 						<Typography variant="h4" align="center" gutterBottom>
 							Log in

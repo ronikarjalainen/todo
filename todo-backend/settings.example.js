@@ -10,18 +10,18 @@ global.run_port = process.env.BE_PORT || 6789;
 global.backend_port = run_port;
 
 // Host, port and path sections of backend
-global.backend_host = "localhost";
-global.backend_protocol = "http";
+global.backend_host = "backend.yourdomain.yourtld";
+global.backend_protocol = "https";
 global.backend_path = "";
 global.backend_url = backend_protocol + "://" + backend_host + ":" + backend_port + "/" + backend_path;
 
 // Frontend can either run separately or from within the Node.js backend
 // From Node.js
-global.frontend_host = backend_host;
-global.frontend_port = backend_port;
+//global.frontend_host = backend_host;
+//global.frontend_port = backend_port;
 // Separately
-//global.frontend_host = "localhost";
-//global.frontend_port = 3000;
+global.frontend_host = "frontendend.yourdomain.yourtld";
+global.frontend_port = 3000;
 
 global.frontend_protocol = backend_protocol;
 global.frontend_path = "";

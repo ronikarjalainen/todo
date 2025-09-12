@@ -3,6 +3,7 @@ require("./settings");
 //const mime = require('mime');
 const mime = require('mime-types');
 const pool = require("./db-pg");
+const https = require("./db-pg");
 const express = require('express');
 const cors = require('cors');
 var corsOptions = {
@@ -24,25 +25,18 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(cors(corsOptions));
 app.use((req, res, next) => {
-  res.set('Cache-Control', 'no-store')
-  next()
+	res.set('Cache-Control', 'private');
+	next();
 });
-app.set('etag', false);
-app.use('/', express.static('login'));
-app.use('/todo', express.static('todo'), async (req, res, next) => {
-	let user_id = await getUserID(req);
-	if(!user_id || user_id < 0) {
-		debuglog("static todo: not logged in");
-		return res.status(403).json({
-			success: false,
-			message: "Access denied.",
-		});
-	}
-	else {
-		debuglog("static todo: logged in as " + user_id);
-		next();
-	}
-});
+app.use('/login/', express.static('login', { setHeaders: setCacheToPublic }));
+
+function setCacheToPublic (res) {
+	res.setHeader('Cache-Control', 'public, max-age=31536001, immutable');
+}
+function setCacheToPrivate (res) {
+	res.setHeader('Cache-Control', 'private, max-age=3600, immutable');
+}
+
 
 function debuglog(debugstring) {
 	if (mode_debug) {
@@ -287,7 +281,7 @@ app.get('/', async (req, res) => {
 		if(user_id > 0) {
 			// show main UI
 			debuglog("get /: logged in as " + user_id);
-			fs.readFile("todo.html", 'utf8', (err, data) => {
+			fs.readFile("todo/index.html", 'utf8', (err, data) => {
 				if(err) {
 					debuglog("todo: error reading file");
 					return res.status(500).json({
@@ -297,34 +291,13 @@ app.get('/', async (req, res) => {
 				}
 				res.send(data);
 			});
-			//res.redirect(frontend_url);
-			/*res.setHeader('Content-Type', 'text/html');
-			res.send(`
-<html>
-	<head><title>Log in</title></head>
-	<body>
-		<h1>Logged in</h1>
-
-	</body>
-</html>`);*/
 		}
 		else {
 			// show log in form
 			debuglog("not logged in: " + user_id);
 			res.setHeader('Content-Type', 'text/html');
-			fs.readFile('login.html', 'utf8', (err, data) => {
+			fs.readFile('login/index.html', 'utf8', (err, data) => {
 				if (err) {
-					res.send(`
-<html>
-<head><title>Log in</title></head>
-<body>
-<form action="/login" method="post">
-<input type="text" id="username" name="username" required><br>
-<input type="password" id="password" name="password" required><br>
-<input type="submit">
-</form>
-</body>
-</html>`);
 					console.error(err);
 				}
 				res.send(data);
@@ -336,6 +309,70 @@ app.get('/', async (req, res) => {
 	}
 });
 
+app.get('/todo/static/css/:file', async (req, res) => {
+	try {
+		let user_id = await getUserID(req);
+		if(user_id > 0) {
+			// show main UI
+			debuglog("get css: logged in as " + user_id);
+			debuglog("get css: fetching " + req.params.file);
+			fs.readFile("todo/static/css/" + req.params.file, 'utf8', (err, data) => {
+				if(err) {
+					debuglog("get css: error reading file");
+					return res.status(500).json({
+						success: false,
+						message: "Internal server error.",
+					});
+				}
+				res.type(mime.lookup("todo/static/css/" + req.params.file));
+				setCacheToPrivate(res);
+				res.send(data);
+			});
+		}
+		else {
+			debuglog("get css: not logged in");
+			return res.status(403).json({
+				success: false,
+				message: "Access denied.",
+			});
+		}
+	}
+	catch (err) {
+		console.error(err);
+	}
+});
+app.get('/todo/static/js/:file', async (req, res) => {
+	try {
+		let user_id = await getUserID(req);
+		if(user_id > 0) {
+			// show main UI
+			debuglog("get js: logged in as " + user_id);
+			debuglog("get js: fetching " + req.params.file);
+			fs.readFile("todo/static/js/" + req.params.file, 'utf8', (err, data) => {
+				if(err) {
+					debuglog("get js: error reading file");
+					return res.status(500).json({
+						success: false,
+						message: "Internal server error.",
+					});
+				}
+				res.type(mime.lookup("todo/static/js/" + req.params.file));
+				setCacheToPrivate(res);
+				res.send(data);
+			});
+		}
+		else {
+			debuglog("get js: not logged in");
+			return res.status(403).json({
+				success: false,
+				message: "Access denied.",
+			});
+		}
+	}
+	catch (err) {
+		console.error(err);
+	}
+});
 
 app.get('/showlogin', async (req, res) => {
 	try {
@@ -749,6 +786,19 @@ app.get('/api/userid', async (req, res) => {
 });
 
 app.listen(run_port, () => {
-	console.log(new Date().toISOString() + ": käytetään porttia " + run_port);
-	console.log("Palvelin kuuntelee osoitteessa " + backend_url);
+	console.log(new Date().toISOString() + ": setting up using port " + run_port);
+	console.log("The server is now listening at " + backend_url);
 });
+/*
+https.createServer(
+    // supply key and cert to the HTTPS server
+    {
+      key: fs.readFileSync("todo-selfsigned.key"),
+      cert: fs.readFileSync("todo-selfsigned.crt"),
+    },
+    app
+  ).listen(run_port, () => {
+		console.log(new Date().toISOString() + ": setting up using port " + run_port);
+		console.log("The server is now listening at " + backend_url);
+});
+*/

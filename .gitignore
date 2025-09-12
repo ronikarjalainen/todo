@@ -7,8 +7,13 @@
 
 # production
 */build
+todo-backend/settings.js
 
 # misc
 .*
 *.log*
 *.7z
+*.crt
+*.key
+*.pem
+*.ppk
